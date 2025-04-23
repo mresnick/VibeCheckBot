@@ -41,7 +41,7 @@ class VibeChecker(private val openAI: OpenAI) {
             logger.debug("Sending channel vibe check request to OpenAI")
             val completion = openAI.chatCompletion(
                 ChatCompletionRequest(
-                    model = ModelId("gpt-3.5-turbo"),
+                    model = ModelId("gpt-4.1-nano"),
                     messages = messages,
                     temperature = 0.7,
                     maxTokens = 500
