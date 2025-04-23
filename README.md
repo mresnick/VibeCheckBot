@@ -1,3 +1,5 @@
+[![Docker](https://github.com/mresnick/VibeCheckBot/actions/workflows/docker-publish.yml/badge.svg?branch=main)](https://github.com/mresnick/VibeCheckBot/actions/workflows/docker-publish.yml)
+
 # VibeCheckBot
 
 A Discord bot that analyzes the vibe of channels and servers using OpenAI's GPT-3.5.
