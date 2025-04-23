@@ -5,6 +5,7 @@
 .gradle/
 build/
 out/
+app/bin/
 *.log
 
 # IntelliJ IDEA

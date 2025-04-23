@@ -19,7 +19,7 @@ class MessageFormatter {
         val content = message.content
         val author = message.author?.username
         return if (content.isNotBlank()) {
-            "$timestamp | $author | $content"
+            "$timestamp | $author: $content"
         } else {
             null
         }
