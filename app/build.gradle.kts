@@ -76,4 +76,7 @@ tasks.named<Jar>("jar") {
     
     // Include all dependencies
     from(configurations.runtimeClasspath.get().map { if (it.isDirectory) it else zipTree(it) })
+    
+    // Handle duplicate files
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }

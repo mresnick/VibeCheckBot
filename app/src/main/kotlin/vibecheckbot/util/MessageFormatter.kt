@@ -2,6 +2,7 @@ package vibecheckbot.util
 
 import dev.kord.core.entity.Message
 import dev.kord.core.entity.channel.TextChannel
+import dev.kord.core.entity.effectiveName
 import dev.kord.common.entity.Snowflake
 import dev.kord.core.behavior.channel.asChannelOf
 import kotlinx.coroutines.flow.toList
@@ -16,8 +17,9 @@ class MessageFormatter {
     fun formatMessage(message: Message): String? {
         val timestamp = message.timestamp
         val content = message.content
+        val author = message.author?.username
         return if (content.isNotBlank()) {
-            "$timestamp | $content"
+            "$timestamp | $author | $content"
         } else {
             null
         }
@@ -26,6 +28,9 @@ class MessageFormatter {
     suspend fun formatChannelMessages(channel: TextChannel, limit: Int): String {
         logger.debug("Formatting messages for channel: ${channel.name} with limit: $limit")
         
+        val rawMessages = channel.messages.toList()
+        logger.debug(rawMessages.joinToString())
+
         val messages = channel.messages.toList().take(limit)
             .mapNotNull { formatMessage(it) }
         

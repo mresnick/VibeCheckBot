@@ -5,6 +5,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    environment:
-      - DISCORD_TOKEN=${DISCORD_TOKEN}
+    env_file:
+      - .env
     restart: unless-stopped 
