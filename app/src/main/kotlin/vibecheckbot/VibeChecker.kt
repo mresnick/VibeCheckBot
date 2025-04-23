@@ -9,7 +9,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 
-class VibeChecker(private val openAI: OpenAI) {
+class VibeChecker(
+    private val openAI: OpenAI,
+    private val openAIModelName: String = "gpt-4.1-nano"
+) {
     private val logger = LoggerFactory.getLogger(VibeChecker::class.java)
 
     suspend fun checkChannelVibe(text: String): String = withContext(Dispatchers.IO) {
@@ -38,10 +41,10 @@ class VibeChecker(private val openAI: OpenAI) {
         )
 
         try {
-            logger.debug("Sending channel vibe check request to OpenAI")
+            logger.debug("Sending channel vibe check request to OpenAI using model: $openAIModelName")
             val completion = openAI.chatCompletion(
                 ChatCompletionRequest(
-                    model = ModelId("gpt-4.1-nano"),
+                    model = ModelId(openAIModelName),
                     messages = messages,
                     temperature = 0.7,
                     maxTokens = 500
@@ -88,10 +91,10 @@ class VibeChecker(private val openAI: OpenAI) {
         )
 
         try {
-            logger.debug("Sending server vibe check request to OpenAI")
+            logger.debug("Sending server vibe check request to OpenAI using model: $openAIModelName")
             val completion = openAI.chatCompletion(
                 ChatCompletionRequest(
-                    model = ModelId("gpt-3.5-turbo"),
+                    model = ModelId(openAIModelName),
                     messages = messages,
                     temperature = 0.7,
                     maxTokens = 1000

@@ -30,12 +30,13 @@ class VibeCheckBot(
     private val discordToken: String,
     private val openAIToken: String,
     private val channelMessageLimit: Int = 20,
-    private val serverMessageLimit: Int = 10
+    private val serverMessageLimit: Int = 10,
+    private val openAIModelName: String = "gpt-4.1-nano"
 ) {
     private val logger = LoggerFactory.getLogger(VibeCheckBot::class.java)
     private lateinit var kord: Kord
     private val openAI = OpenAI(openAIToken)
-    private val vibeChecker = VibeChecker(openAI)
+    private val vibeChecker = VibeChecker(openAI, openAIModelName)
     private val messageFormatter = MessageFormatter()
     private val maxDiscordMessageLength = 2000
 
@@ -205,14 +206,16 @@ fun main() = runBlocking {
     
     val channelMessageLimit = System.getenv("CHANNEL_MESSAGE_LIMIT")?.toIntOrNull() ?: 20
     val serverMessageLimit = System.getenv("SERVER_MESSAGE_LIMIT")?.toIntOrNull() ?: 10
+    val openAIModelName = System.getenv("OPENAI_MODEL_NAME") ?: "gpt-4.1-nano"
     
-    logger.info("Initializing VibeCheckBot with channel message limit: $channelMessageLimit, server message limit: $serverMessageLimit")
+    logger.info("Initializing VibeCheckBot with channel message limit: $channelMessageLimit, server message limit: $serverMessageLimit, OpenAI model: $openAIModelName")
     
     val bot = VibeCheckBot(
         discordToken,
         openAIToken,
         channelMessageLimit,
-        serverMessageLimit
+        serverMessageLimit,
+        openAIModelName
     )
     
     try {
