@@ -12,6 +12,7 @@ import dev.kord.core.on
 import dev.kord.gateway.Intent
 import dev.kord.gateway.PrivilegedIntent
 import dev.kord.rest.builder.interaction.subCommand
+import dev.kord.rest.builder.interaction.channel
 import dev.kord.core.behavior.interaction.response.respond
 import dev.kord.core.behavior.interaction.response.edit
 import dev.kord.core.behavior.interaction.response.DeferredEphemeralMessageInteractionResponseBehavior
@@ -25,13 +26,14 @@ import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import vibecheckbot.util.MessageFormatter
 import dev.kord.core.entity.interaction.GuildChatInputCommandInteraction
+import dev.kord.common.entity.ChannelType
 
 class VibeCheckBot(
     private val discordToken: String,
     private val openAIToken: String,
-    private val channelMessageLimit: Int = 20,
-    private val serverMessageLimit: Int = 10,
-    private val openAIModelName: String = "gpt-4.1-nano"
+    private val channelMessageLimit: Int,
+    private val serverMessageLimit: Int,
+    private val openAIModelName: String
 ) {
     private val logger = LoggerFactory.getLogger(VibeCheckBot::class.java)
     private lateinit var kord: Kord
@@ -40,85 +42,6 @@ class VibeCheckBot(
     private val messageFormatter = MessageFormatter()
     private val maxDiscordMessageLength = 2000
 
-    private suspend fun sendLongMessage(messageChannelBehavior: MessageChannelBehavior, content: String) {
-        if (content.length <= maxDiscordMessageLength) {
-            messageChannelBehavior.createMessage { this.content = content }
-            return
-        }
-
-        // Split the content into chunks of maxDiscordMessageLength
-        val chunks = content.chunked(maxDiscordMessageLength)
-        chunks.forEach { chunk ->
-            messageChannelBehavior.createMessage { this.content = chunk }
-        }
-    }
-
-    private suspend fun getChannelMessages(channel: TextChannel, limit: Int): List<String> {
-        return try { 
-            channel.getMessagesBefore(channel.lastMessageId!!, limit)
-            .toList()
-            .filter { message -> message.author != null }
-            .mapNotNull { message -> messageFormatter.formatMessage(message) }
-        } catch (e: Exception) {
-            logger.error("Error getting messages from channel: ${channel.name}", e)
-            emptyList()
-        }
-    }
-
-    private suspend fun checkChannelVibe(channel: TextChannel, response: DeferredEphemeralMessageInteractionResponseBehavior) {
-        logger.debug("Channel vibe check requested in channel: ${channel.name}")
-
-        val formattedMessages = getChannelMessages(channel, channelMessageLimit)
-
-        if (formattedMessages.isEmpty()) {
-            logger.info("No messages found to analyze in channel: ${channel.name}")
-            response.respond {
-                content = "No messages found to analyze in this channel!"
-            }
-            return
-        }
-
-        val result = vibeChecker.checkChannelVibe(formattedMessages.joinToString("\n"))
-        logger.debug("Channel vibe check completed for channel: ${channel.name}")
-        channel.createMessage {
-            content = "Channel Vibe Check Results:\n$result"
-        }
-        response.delete()
-    }
-
-    private suspend fun checkServerVibe(guildInteraction: GuildChatInputCommandInteraction, response: DeferredEphemeralMessageInteractionResponseBehavior) {
-        logger.debug("Server vibe check requested in guild: ${guildInteraction.guildId}")
-
-        val formattedMessage: String = guildInteraction.guild.channels.toList()
-            .filter{ it is TextChannel }
-            .map { channel -> 
-                val channelName = (channel as TextChannel).name
-                logger.debug("Getting messages from $channelName")
-                val messages = getChannelMessages(channel, serverMessageLimit)
-                logger.debug("Messages: $messages")
-                if (messages.isNotEmpty()) {
-                    "Server Vibe Check\n\nChannel: #$channelName\n${messages.joinToString("\n")}"
-                } else null
-            }
-            .filterNotNull()
-            .joinToString("\n\n")
-        
-        logger.debug("Formatted message: $formattedMessage")
-
-        if (formattedMessage.isEmpty()) {
-            logger.info("No messages found to analyze in guild: ${guildInteraction.guildId}")
-            response.respond {
-                content = "No messages found to analyze in the server!"
-            }
-            return
-        }
-
-        val result = vibeChecker.checkServerVibe(formattedMessage)
-        logger.debug("Server vibe check completed for guild: ${guildInteraction.guildId}")
-        sendLongMessage(guildInteraction.channel, "Server Vibe Check Results:\n$result")
-        response.delete()
-    }
-
     suspend fun start() {
         logger.info("Starting VibeCheckBot...")
         
@@ -126,7 +49,11 @@ class VibeCheckBot(
         
         // Register slash commands
         kord.createGlobalChatInputCommand("vibecheck", "Check the vibe of this server or channel") {
-            subCommand("channel", "Check the vibe of the current channel")
+            subCommand("channel", "Check the vibe of a channel") {
+                channel("target", "The channel to check (defaults to current channel)") {
+                    channelTypes = listOf(ChannelType.GuildText)
+                }
+            }
             subCommand("server", "Check the vibe of the entire server")
         }
         logger.debug("Slash commands registered successfully")
@@ -138,7 +65,9 @@ class VibeCheckBot(
                 "vibecheck" -> {
                     when (command.name) {
                         "channel" -> {
-                            val channel = interaction.channel.asChannel() as? TextChannel
+                            val targetChannel = command.options["target"]?.value as? TextChannel
+                            val channel = targetChannel ?: interaction.channel.asChannel() as? TextChannel
+                            
                             if (channel == null) {
                                 interaction.deferEphemeralResponse().respond {
                                     content = "This command can only be used in text channels!"
@@ -148,7 +77,7 @@ class VibeCheckBot(
 
                             val response = interaction.deferEphemeralResponse()
                             response.respond {
-                                content = "Checking the vibe of this channel..."
+                                content = "Checking the vibe of #${channel.name}..."
                             }
                             checkChannelVibe(channel, response)
                         }
@@ -196,6 +125,91 @@ class VibeCheckBot(
         }
         logger.info("VibeCheckBot stopped successfully")
     }
+
+    private suspend fun sendLongMessage(messageChannelBehavior: MessageChannelBehavior, content: String) {
+        if (content.length <= maxDiscordMessageLength) {
+            messageChannelBehavior.createMessage { this.content = content }
+            return
+        }
+
+        // Split the content into chunks of maxDiscordMessageLength
+        val chunks = content.chunked(maxDiscordMessageLength)
+        chunks.forEach { chunk ->
+            messageChannelBehavior.createMessage { this.content = chunk }
+        }
+    }
+
+    private suspend fun getChannelMessages(channel: TextChannel, limit: Int): List<String> {
+        return try { 
+            val messages = channel.getMessagesBefore(channel.lastMessageId!!, limit)
+                .toList()
+                .filter { message -> message.author != null }
+                .mapNotNull { message -> messageFormatter.formatMessage(message) }
+            
+            if (messages.isNotEmpty()) {
+                listOf("Channel: #${channel.name}") + messages
+            } else {
+                emptyList()
+            }
+        } catch (e: Exception) {
+            logger.error("Error getting messages from channel: ${channel.name}", e)
+            emptyList()
+        }
+    }
+
+    private suspend fun checkChannelVibe(channel: TextChannel, response: DeferredEphemeralMessageInteractionResponseBehavior) {
+        logger.debug("Channel vibe check requested in channel: ${channel.name}")
+
+        val formattedMessages = getChannelMessages(channel, channelMessageLimit)
+
+        if (formattedMessages.isEmpty()) {
+            logger.info("No messages found to analyze in channel: ${channel.name}")
+            response.respond {
+                content = "No messages found to analyze in this channel!"
+            }
+            return
+        }
+
+        val result = vibeChecker.checkChannelVibe(formattedMessages.joinToString("\n"))
+        logger.debug("Channel vibe check completed for channel: ${channel.name}")
+        channel.createMessage {
+            content = "$result"
+        }
+        response.delete()
+    }
+
+    private suspend fun checkServerVibe(guildInteraction: GuildChatInputCommandInteraction, response: DeferredEphemeralMessageInteractionResponseBehavior) {
+        logger.debug("Server vibe check requested in guild: ${guildInteraction.guildId}")
+
+        val formattedMessage: String = guildInteraction.guild.channels.toList()
+            .filter{ it is TextChannel }
+            .map { channel -> 
+                val channelName = (channel as TextChannel).name
+                logger.debug("Getting messages from $channelName")
+                val messages = getChannelMessages(channel, serverMessageLimit)
+                logger.debug("Messages: $messages")
+                if (messages.isNotEmpty()) {
+                    messages.joinToString("\n")
+                } else null
+            }
+            .filterNotNull()
+            .joinToString("\n\n")
+        
+        logger.debug("Formatted message: $formattedMessage")
+
+        if (formattedMessage.isEmpty()) {
+            logger.info("No messages found to analyze in guild: ${guildInteraction.guildId}")
+            response.respond {
+                content = "No messages found to analyze in the server!"
+            }
+            return
+        }
+
+        val result = vibeChecker.checkServerVibe(formattedMessage)
+        logger.debug("Server vibe check completed for guild: ${guildInteraction.guildId}")
+        sendLongMessage(guildInteraction.channel, "$result")
+        response.delete()
+    }
 }
 
 fun main() = runBlocking {
@@ -211,11 +225,11 @@ fun main() = runBlocking {
     logger.info("Initializing VibeCheckBot with channel message limit: $channelMessageLimit, server message limit: $serverMessageLimit, OpenAI model: $openAIModelName")
     
     val bot = VibeCheckBot(
-        discordToken,
-        openAIToken,
-        channelMessageLimit,
-        serverMessageLimit,
-        openAIModelName
+        discordToken = discordToken,
+        openAIToken = openAIToken,
+        channelMessageLimit = channelMessageLimit,
+        serverMessageLimit = serverMessageLimit,
+        openAIModelName = openAIModelName
     )
     
     try {

@@ -11,7 +11,7 @@ import org.slf4j.LoggerFactory
 
 class VibeChecker(
     private val openAI: OpenAI,
-    private val openAIModelName: String = "gpt-4.1-nano"
+    private val openAIModelName: String
 ) {
     private val logger = LoggerFactory.getLogger(VibeChecker::class.java)
 
@@ -22,16 +22,15 @@ class VibeChecker(
             ChatMessage(
                 role = ChatRole.System,
                 content = """
-                    You are a vibe checker. Analyze the given text from a single Discord channel and provide a clinical assessment of its vibe.
+                    You are a vibe checker. Your only purpose is to check vibes, and you do that job well. Given a channel and some of its message history,
+                    you will generate a concise analysis of the vibe of the channel. The output should begin with a header, "Vibe Check: #channelName", where channelName is
+                    the name of the channel. The output should be formatted for Discord, and all headers should be bolded.
                     
-                    Focus on:
+                    Take anything and everything into account, including but not limited to: 
                     - The overall tone and sentiment of the channel
                     - The general atmosphere and mood
                     - Any notable patterns in communication
                     - The level of engagement and activity
-                    - Whether the channel seems welcoming and inclusive
-                    
-                    Provide a concise but insightful analysis that captures the essence of the channel's vibe.
                 """.trimIndent()
             ),
             ChatMessage(
@@ -67,21 +66,18 @@ class VibeChecker(
             ChatMessage(
                 role = ChatRole.System,
                 content = """
-                    You are a vibe checker. Analyze the given text from multiple Discord channels and provide a comprehensive assessment of the server's vibe.
+                    You are a vibe checker. Your only purpose is to check vibes, and you do that job well. Given a list of channels and their message history, 
+                    you will generate a concise analysis of the vibe of the server. The output does not need to discuss every channel, but should select a few highlights and give a general overview of the server vibe as well.length
+
+                    For every channel mentioned, it should begin with "Channel: #channelName", where channelName is the name of the channel. 
                     
-                    For each channel:
-                    - Analyze its unique characteristics and purpose
-                    - Assess the tone, sentiment, and atmosphere
-                    - Note the level of activity and engagement
-                    - Identify any notable patterns or themes
-                    
-                    Then provide:
-                    - A summary of each channel's individual vibe
-                    - An overall assessment of the server's vibe
-                    - How different channels complement or contrast with each other
-                    - Whether the server as a whole feels cohesive and welcoming
-                    
-                    Structure your response to clearly separate channel-specific analysis from the overall server assessment.
+                    The overall output should conclude with a "Server Vibe" section, using that as a header. The output should be formatted for Discord, and all headers should be bolded.
+
+                    Take anything and everything into account, including but not limited to: 
+                    - The overall tone and sentiment of the channel
+                    - The general atmosphere and mood
+                    - Any notable patterns in communication
+                    - The level of engagement and activity
                 """.trimIndent()
             ),
             ChatMessage(
