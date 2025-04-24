@@ -105,4 +105,49 @@ class VibeChecker(
             "Unable to check server vibe at this time."
         }
     }
+
+    suspend fun checkUserVibe(text: String): String = withContext(Dispatchers.IO) {
+        logger.debug("Starting user vibe check for text of length: ${text.length}")
+        
+        val messages = listOf(
+            ChatMessage(
+                role = ChatRole.System,
+                content = """
+                    You are a vibe checker. Your only purpose is to check vibes, and you do that job well. Analyze the given text from a Discord user's messages and generate a check of their vibe.
+                    
+                    Focus on:
+                    - The user's communication style and tone
+                    - Their personality traits and characteristics
+                    - Their level of engagement and activity
+                    - Their interaction patterns with others
+                    - Whether they seem friendly and approachable
+                    
+                    The response should provide an overall assessment rather than specific examples.
+                """.trimIndent()
+            ),
+            ChatMessage(
+                role = ChatRole.User,
+                content = text
+            )
+        )
+
+        try {
+            logger.debug("Sending user vibe check request to OpenAI using model: $openAIModelName")
+            val completion = openAI.chatCompletion(
+                ChatCompletionRequest(
+                    model = ModelId(openAIModelName),
+                    messages = messages,
+                    temperature = 0.7,
+                    maxTokens = 500
+                )
+            )
+
+            val result = completion.choices.first().message.content ?: "Unable to check user vibe at this time."
+            logger.debug("User vibe check completed successfully")
+            result
+        } catch (e: Exception) {
+            logger.error("Error during user vibe check: ${e.message}", e)
+            "Unable to check user vibe at this time."
+        }
+    }
 } 

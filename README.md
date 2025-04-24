@@ -8,6 +8,7 @@ Discord server and channel vibe check, to make sure your vibes are vibin'.
 
 - `/vibecheck channel` - Vibe check the current channel
 - `/vibecheck server` - Vibe check the whole server
+- `/vibecheck user` - Vibe check a specific user
 
 ## Setup
 
@@ -17,6 +18,7 @@ DISCORD_TOKEN=your_discord_bot_token
 OPENAI_API_KEY=your_openai_api_key
 CHANNEL_MESSAGE_LIMIT=20  # Optional, defaults to 20
 SERVER_MESSAGE_LIMIT=10   # Optional, defaults to 10
+USER_MESSAGE_LIMIT=50     # Optional, defaults to 50
 OPENAI_MODEL_NAME=gpt-4.1-nano # Optional, defaults to gpt-4.1-nano
 ```
 
@@ -58,6 +60,7 @@ For integration tests:
 - `OPENAI_API_KEY` (Required): Your OpenAI API key
 - `CHANNEL_MESSAGE_LIMIT` (Optional): Number of messages to analyze in a channel (default: 20)
 - `SERVER_MESSAGE_LIMIT` (Optional): Number of messages to analyze per channel in server check (default: 10)
+- `USER_MESSAGE_LIMIT` (Optional): Number of messages to analyze per channel in user check (default: 50)
 - `OPENAI_MODEL_NAME` (Optional): OpenAI model to use (default: gpt-4.1-nano) 
 
 ## License
