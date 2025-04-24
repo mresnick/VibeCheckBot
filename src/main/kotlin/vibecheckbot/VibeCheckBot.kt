@@ -17,6 +17,7 @@ import dev.kord.rest.builder.interaction.channel
 import dev.kord.core.behavior.interaction.response.respond
 import dev.kord.core.behavior.interaction.response.edit
 import dev.kord.core.behavior.interaction.response.DeferredEphemeralMessageInteractionResponseBehavior
+import dev.kord.core.behavior.interaction.response.DeferredPublicMessageInteractionResponseBehavior
 import dev.kord.common.entity.Snowflake
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.toList
@@ -28,6 +29,7 @@ import java.time.temporal.ChronoUnit
 import vibecheckbot.util.MessageFormatter
 import dev.kord.core.entity.interaction.GuildChatInputCommandInteraction
 import dev.kord.core.entity.interaction.UserOptionValue
+import dev.kord.core.entity.interaction.ChatInputCommandInteraction
 import dev.kord.core.entity.User
 import dev.kord.common.entity.ChannelType
 import dev.kord.common.entity.DiscordEmoji
@@ -69,10 +71,17 @@ class VibeCheckBot(
             subCommand("user", "Check the vibe of a specific user") {
                 user("target", "The user to check")
             }
+            subCommand("user-in-channel", "Check the vibe of a user in a specific channel") {
+                user("user", "The user to check")
+                channel("channel", "The channel to check") {
+                    channelTypes = listOf(ChannelType.GuildText)
+                }
+            }
+            subCommand("about", "Who am I?")
         }
         logger.debug("Slash commands registered successfully")
 
-        // Handle message events
+       // Handle message events
         kord.on<MessageCreateEvent> {
             if (message.author?.isBot == true) return@on // Ignore bot messages
             
@@ -103,10 +112,7 @@ class VibeCheckBot(
                                 return@on
                             }
 
-                            val response = interaction.deferEphemeralResponse()
-                            response.respond {
-                                content = "Checking the vibe of #${channel.name}..."
-                            }
+                            val response = interaction.deferPublicResponse()
                             checkChannelVibe(channel, response)
                         }
                         "server" -> {
@@ -118,10 +124,7 @@ class VibeCheckBot(
                                 return@on
                             }
 
-                            val response = interaction.deferEphemeralResponse()
-                            response.respond {
-                                content = "Checking the vibe of the entire server... This might take a moment!"
-                            }
+                            val response = interaction.deferPublicResponse()
                             checkServerVibe(guildInteraction, response)
                         }
                         "user" -> {
@@ -141,11 +144,44 @@ class VibeCheckBot(
                                 return@on
                             }
 
-                            val response = interaction.deferEphemeralResponse()
-                            response.respond {
-                                content = "Checking the vibe of ${targetUser.mention}... This might take a moment!"
-                            }
+                            val response = interaction.deferPublicResponse()
                             checkUserVibe(guildInteraction, targetUser, response)
+                        }
+                        "user-in-channel" -> {
+                            val guildInteraction = interaction as? GuildChatInputCommandInteraction
+                            if (guildInteraction == null) {
+                                interaction.deferEphemeralResponse().respond {
+                                    content = "This command can only be used in a server!"
+                                }
+                                return@on
+                            }
+
+                            val targetUser = (command.options["user"]?.value as Snowflake).let { kord.getUser(it) }
+                            val targetChannel = (command.options["channel"]?.value as Snowflake).let { kord.getChannel(it) } as? TextChannel
+                            
+                            if (targetUser == null) {
+                                interaction.deferEphemeralResponse().respond {
+                                    content = "Please specify a user to check!"
+                                }
+                                return@on
+                            }
+                            
+                            if (targetChannel == null) {
+                                interaction.deferEphemeralResponse().respond {
+                                    content = "Please specify a channel to check!"
+                                }
+                                return@on
+                            }
+
+                            val response = interaction.deferPublicResponse()
+                            checkUserInChannelVibe(targetUser, targetChannel, response)
+                        }
+                        "about" -> {
+                            val response = interaction.deferPublicResponse()
+                            val result = vibeChecker.getAboutInfo()
+                            response.respond {
+                                content = result
+                            }
                         }
                         else -> {
                             interaction.deferEphemeralResponse().respond {
@@ -179,14 +215,18 @@ class VibeCheckBot(
 
     private suspend fun sendLongMessage(messageChannelBehavior: MessageChannelBehavior, content: String) {
         if (content.length <= maxDiscordMessageLength) {
-            messageChannelBehavior.createMessage { this.content = content }
+            messageChannelBehavior.createMessage {
+                this.content = content
+            }
             return
         }
 
         // Split the content into chunks of maxDiscordMessageLength
         val chunks = content.chunked(maxDiscordMessageLength)
         chunks.forEach { chunk ->
-            messageChannelBehavior.createMessage { this.content = chunk }
+            messageChannelBehavior.createMessage {
+                this.content = chunk
+            }
         }
     }
 
@@ -201,7 +241,7 @@ class VibeCheckBot(
         }
     }
 
-    private suspend fun checkChannelVibe(channel: TextChannel, response: DeferredEphemeralMessageInteractionResponseBehavior) {
+    private suspend fun checkChannelVibe(channel: TextChannel, response: DeferredPublicMessageInteractionResponseBehavior) {
         logger.debug("Channel vibe check requested in channel: ${channel.name}")
 
         val messages = getChannelMessages(channel, channelMessageLimit)
@@ -221,13 +261,12 @@ class VibeCheckBot(
 
         val result = vibeChecker.checkChannelVibe(formattedMessages.joinToString("\n"))
         logger.debug("Channel vibe check completed for channel: ${channel.name}")
-        channel.createMessage {
-            content = "$result"
+        response.respond {
+            content = result
         }
-        response.delete()
     }
 
-    private suspend fun checkServerVibe(guildInteraction: GuildChatInputCommandInteraction, response: DeferredEphemeralMessageInteractionResponseBehavior) {
+    private suspend fun checkServerVibe(guildInteraction: GuildChatInputCommandInteraction, response: DeferredPublicMessageInteractionResponseBehavior) {
         logger.debug("Server vibe check requested in guild: ${guildInteraction.guildId}")
 
         val formattedMessage: String = guildInteraction.guild.channels.toList()
@@ -260,11 +299,12 @@ class VibeCheckBot(
 
         val result = vibeChecker.checkServerVibe(formattedMessage)
         logger.debug("Server vibe check completed for guild: ${guildInteraction.guildId}")
-        sendLongMessage(guildInteraction.channel, "$result")
-        response.delete()
+        response.respond {
+            content = result
+        }
     }
 
-    private suspend fun checkUserVibe(guildInteraction: GuildChatInputCommandInteraction, targetUser: dev.kord.core.entity.User, response: DeferredEphemeralMessageInteractionResponseBehavior) {
+    private suspend fun checkUserVibe(guildInteraction: GuildChatInputCommandInteraction, targetUser: dev.kord.core.entity.User, response: DeferredPublicMessageInteractionResponseBehavior) {
         logger.debug("User vibe check requested for user: ${targetUser.id}")
 
         val formattedMessage: String = guildInteraction.guild.channels.toList()
@@ -298,8 +338,39 @@ class VibeCheckBot(
 
         val result = vibeChecker.checkUserVibe(formattedMessage)
         logger.debug("User vibe check completed for user: ${targetUser.id}")
-        sendLongMessage(guildInteraction.channel, "User Vibe Check Results for ${targetUser.mention}:\n$result")
-        response.delete()
+        response.respond {
+            content = result
+        }
+    }
+
+    private suspend fun checkUserInChannelVibe(
+        targetUser: User,
+        targetChannel: TextChannel,
+        response: DeferredPublicMessageInteractionResponseBehavior
+    ) {
+        logger.debug("User in channel vibe check requested for user: ${targetUser.id} in channel: ${targetChannel.name}")
+
+        val messages = getChannelMessages(targetChannel, userMessageLimit)
+            .filter { message -> message.author?.id == targetUser.id }
+        val formattedMessages = if (messages.isNotEmpty()) {
+            listOf("Channel: #${targetChannel.name}") + messages.mapNotNull { messageFormatter.formatMessage(it) }
+        } else {
+            emptyList()
+        }
+
+        if (formattedMessages.isEmpty()) {
+            logger.info("No messages found to analyze for user: ${targetUser.id} in channel: ${targetChannel.name}")
+            response.respond {
+                content = "No messages found to analyze for ${targetUser.mention} in #${targetChannel.name}!"
+            }
+            return
+        }
+
+        val result = vibeChecker.checkUserVibe(formattedMessages.joinToString("\n"))
+        logger.debug("User in channel vibe check completed for user: ${targetUser.id} in channel: ${targetChannel.name}")
+        response.respond {
+            content = result
+        }
     }
 }
 

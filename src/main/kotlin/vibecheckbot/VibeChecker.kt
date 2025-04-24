@@ -122,7 +122,9 @@ class VibeChecker(
                     - Their interaction patterns with others
                     - Whether they seem friendly and approachable
                     
-                    The response should provide an overall assessment rather than specific examples.
+                    The response should provide an overall assessment rather than specific examples. The response should have a header indicating the user and channel being analyzed. 
+                    
+                    The response should be formatted for Discord, and all headers should be bolded. 
                 """.trimIndent()
             ),
             ChatMessage(
@@ -189,6 +191,40 @@ class VibeChecker(
         } catch (e: Exception) {
             logger.error("Error during message vibe check: ${e.message}", e)
             null
+        }
+    }
+
+    suspend fun getAboutInfo(): String = withContext(Dispatchers.IO) {
+        logger.debug("Getting about info")
+        
+        val messages = listOf(
+            ChatMessage(
+                role = ChatRole.System,
+                content = """
+                    You are a discord bot that can be used to check the vibe of a server, channel, or user. Your name is VibeCheckBot.
+
+                    Respond as though a user has just run an "about" command looking to understand your capabilities and function.
+                """.trimIndent()
+            )
+        )
+
+        try {
+            logger.debug("Sending about info request to OpenAI using model: $openAIModelName")
+            val completion = openAI.chatCompletion(
+                ChatCompletionRequest(
+                    model = ModelId(openAIModelName),
+                    messages = messages,
+                    temperature = 0.7,
+                    maxTokens = 500
+                )
+            )
+
+            val result = completion.choices.first().message.content ?: "Unable to get about info at this time."
+            logger.debug("About info request completed successfully")
+            result
+        } catch (e: Exception) {
+            logger.error("Error during about info request: ${e.message}", e)
+            "Unable to get about info at this time."
         }
     }
 } 
