@@ -30,7 +30,12 @@ import dev.kord.core.entity.interaction.GuildChatInputCommandInteraction
 import dev.kord.core.entity.interaction.UserOptionValue
 import dev.kord.core.entity.User
 import dev.kord.common.entity.ChannelType
+import dev.kord.common.entity.DiscordEmoji
 import dev.kord.core.entity.Message
+import dev.kord.core.entity.StandardEmoji
+import dev.kord.core.entity.ReactionEmoji
+import dev.kord.core.event.message.MessageCreateEvent
+import kotlin.random.Random
 
 class VibeCheckBot(
     private val discordToken: String,
@@ -38,7 +43,8 @@ class VibeCheckBot(
     private val channelMessageLimit: Int,
     private val serverMessageLimit: Int,
     private val userMessageLimit: Int,
-    private val openAIModelName: String
+    private val openAIModelName: String,
+    private val messageCheckChance: Double
 ) {
     private val logger = LoggerFactory.getLogger(VibeCheckBot::class.java)
     private lateinit var kord: Kord
@@ -65,6 +71,20 @@ class VibeCheckBot(
             }
         }
         logger.debug("Slash commands registered successfully")
+
+        // Handle message events
+        kord.on<MessageCreateEvent> {
+            if (message.author?.isBot == true) return@on // Ignore bot messages
+            
+            // Only check messages based on configured chance
+            if (Random.nextDouble() < messageCheckChance) {
+                // Add reactions based on message content
+                val reaction = vibeChecker.checkMessageVibeEmoji(message.content)
+                if (reaction != null) {
+                    message.addReaction(ReactionEmoji.Unicode(reaction))
+                }
+            }
+        }
 
         // Handle slash commands
         kord.on<ChatInputCommandInteractionCreateEvent> {
@@ -293,8 +313,9 @@ fun main() = runBlocking {
     val serverMessageLimit = System.getenv("SERVER_MESSAGE_LIMIT")?.toIntOrNull() ?: 10
     val userMessageLimit = System.getenv("USER_MESSAGE_LIMIT")?.toIntOrNull() ?: 50
     val openAIModelName = System.getenv("OPENAI_MODEL_NAME") ?: "gpt-4.1-nano"
+    val messageCheckChance = System.getenv("MESSAGE_CHECK_CHANCE")?.toDoubleOrNull() ?: 0.05
     
-    logger.info("Initializing VibeCheckBot with channel message limit: $channelMessageLimit, server message limit: $serverMessageLimit, user message limit: $userMessageLimit, OpenAI model: $openAIModelName")
+    logger.info("Initializing VibeCheckBot with channel message limit: $channelMessageLimit, server message limit: $serverMessageLimit, user message limit: $userMessageLimit, OpenAI model: $openAIModelName, message check chance: $messageCheckChance")
     
     val bot = VibeCheckBot(
         discordToken = discordToken,
@@ -302,7 +323,8 @@ fun main() = runBlocking {
         channelMessageLimit = channelMessageLimit,
         serverMessageLimit = serverMessageLimit,
         userMessageLimit = userMessageLimit,
-        openAIModelName = openAIModelName
+        openAIModelName = openAIModelName,
+        messageCheckChance = messageCheckChance
     )
     
     try {
