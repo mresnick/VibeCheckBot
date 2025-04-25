@@ -184,9 +184,12 @@ class VibeChecker(
                 )
             )
 
-            var result = completion.choices.first().message.content
-            if (result.isNullOrEmpty()) result = null
-            logger.debug("Message vibe check completed successfully with result: $result")
+            val result = completion.choices.first().message.content?.trim()
+            if (result.isNullOrEmpty()) {
+                logger.debug("Message vibe check completed with no emoji (vibe not high enough)")
+                return@withContext null
+            }
+            logger.debug("Message vibe check completed successfully with emoji: $result")
             result
         } catch (e: Exception) {
             logger.error("Error during message vibe check: ${e.message}", e)

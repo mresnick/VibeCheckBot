@@ -8,7 +8,7 @@ Discord server and channel vibe check, to make sure your vibes are vibin'.
 
 - `/vibecheck channel` - Vibe check the current channel
 - `/vibecheck server` - Vibe check the whole server
-- `/vibecheck user` - Vibe check a specific user
+- `/vibecheck user @user [#channel]` - Vibe check a specific user (optionally in a specific channel)
 
 ## Setup
 
