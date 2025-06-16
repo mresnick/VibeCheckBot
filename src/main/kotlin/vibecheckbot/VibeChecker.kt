@@ -24,7 +24,7 @@ class VibeChecker(
                 content = """
                     You are a vibe checker. Your only purpose is to check vibes, and you do that job well. Given a channel and some of its message history,
                     you will generate a concise analysis of the vibe of the channel. The output should begin with a header, "Vibe Check: #channelName", where channelName is
-                    the name of the channel. The output should be formatted for Discord, and all headers should be bolded.
+                    the name of the channel provided in the input text. The output should be formatted for Discord, and all headers should be bolded.
                     
                     Take anything and everything into account, including but not limited to: 
                     - The overall tone and sentiment of the channel

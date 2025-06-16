@@ -99,7 +99,7 @@ class VibeCheckBot(
                 "vibecheck" -> {
                     when (command.name) {
                         "channel" -> {
-                            val targetChannel = command.options["target"]?.value as? TextChannel
+                            val targetChannel = command.options["target"]?.value?.let { kord.getChannel(it as Snowflake) } as? TextChannel
                             val channel = targetChannel ?: interaction.channel.asChannel() as? TextChannel
                             
                             if (channel == null) {
