@@ -13,7 +13,9 @@ class VibeCheckBotTest {
             openAIToken = openAIToken,
             channelMessageLimit = 20,
             serverMessageLimit = 10,
-            openAIModelName = "gpt-4.1-nano"
+            openAIModelName = "gpt-4.1-nano",
+            userMessageLimit = 5,
+            messageCheckChance = 0.1
         )
         assertNotNull(bot, "Bot should be created successfully")
     }

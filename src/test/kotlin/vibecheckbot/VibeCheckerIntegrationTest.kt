@@ -21,7 +21,7 @@ class VibeCheckerIntegrationTest {
         val openAIToken = System.getenv("OPENAI_API_KEY")
         logger.debug("Using OpenAI API token from environment variable")
         val realOpenAI = OpenAI(openAIToken)
-        val integrationVibeChecker = VibeChecker(realOpenAI)
+        val integrationVibeChecker = VibeChecker(realOpenAI, "gpt-4.1-nano")
         val testText = "Hello everyone! Let's have a great day!"
         logger.debug("Test text: $testText")
 
@@ -47,7 +47,7 @@ class VibeCheckerIntegrationTest {
         val openAIToken = System.getenv("OPENAI_API_KEY")
         logger.debug("Using OpenAI API token from environment variable")
         val realOpenAI = OpenAI(openAIToken)
-        val integrationVibeChecker = VibeChecker(realOpenAI)
+        val integrationVibeChecker = VibeChecker(realOpenAI, "gpt-4.1-nano")
         val testText = """
             #general: Hello everyone! Great discussion today!
             #random: Just sharing some memes and having fun

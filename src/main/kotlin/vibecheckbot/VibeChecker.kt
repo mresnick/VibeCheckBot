@@ -24,7 +24,7 @@ class VibeChecker(
                 content = """
                     You are a vibe checker. Your only purpose is to check vibes, and you do that job well. Given a channel and some of its message history,
                     you will generate a concise analysis of the vibe of the channel. The output should begin with a header, "Vibe Check: #channelName", where channelName is
-                    the name of the channel. The output should be formatted for Discord, and all headers should be bolded.
+                    the name of the channel provided in the input text. The output should be formatted for Discord, and all headers should be bolded.
                     
                     Take anything and everything into account, including but not limited to: 
                     - The overall tone and sentiment of the channel
@@ -153,7 +153,7 @@ class VibeChecker(
         }
     }
 
-    suspend fun checkMessageVibeEmoji(text: String): String? = withContext(Dispatchers.IO) {
+    suspend fun checkMessageVibeEmoji(text: String, availableCustomEmojis: List<String> = emptyList()): Pair<String, String>? = withContext(Dispatchers.IO) {
         logger.debug("Starting message vibe check for text of length: ${text.length}")
         
         val messages = listOf(
@@ -162,9 +162,16 @@ class VibeChecker(
                 content = """
                     You are a vibe checker. Analyze the vibe of the following message on a scale of 1 to 10, where 1 is the worst and 10 is the best.
 
-                    If the vibe is a 9 or 10, respond with an emoji of your choosing. Otherwise, respond with nothing whatsoever.
+                    Vibe should take into account the message's content, length, any salient points it is making, humor, etc.
 
-                    Respond only with the emoji, should you select one.
+                    If the vibe is a 9 or 10, respond with an emoji of your choosing. You can use either a Unicode emoji or a custom server emoji.
+                    For Unicode emojis, respond with "unicode:emoji" (e.g., "unicode:🌟")
+                    For custom server emojis, respond with "custom:emoji_name" (e.g., "custom:pepega")
+
+                    Available custom emojis: ${availableCustomEmojis.joinToString(", ")}
+
+                    Respond only with the emoji format, should you select one.
+                    If using a custom emoji, make sure to use one from the available list.
                 """.trimIndent()
             ),
             ChatMessage(
@@ -180,7 +187,7 @@ class VibeChecker(
                     model = ModelId(openAIModelName),
                     messages = messages,
                     temperature = 0.7,
-                    maxTokens = 10
+                    maxTokens = 20
                 )
             )
 
@@ -189,8 +196,28 @@ class VibeChecker(
                 logger.debug("Message vibe check completed with no emoji (vibe not high enough)")
                 return@withContext null
             }
+
+            // Parse the response format
+            val parts = result.split(":", limit = 2)
+            if (parts.size != 2) {
+                logger.error("Invalid emoji format received: $result")
+                return@withContext null
+            }
+
+            val (type, emoji) = parts
+            if (type !in listOf("unicode", "custom")) {
+                logger.error("Invalid emoji type received: $type")
+                return@withContext null
+            }
+
+            // Validate custom emoji if one was selected
+            if (type == "custom" && emoji !in availableCustomEmojis) {
+                logger.error("Selected custom emoji not in available list: $emoji")
+                return@withContext null
+            }
+
             logger.debug("Message vibe check completed successfully with emoji: $result")
-            result
+            Pair(type, emoji)
         } catch (e: Exception) {
             logger.error("Error during message vibe check: ${e.message}", e)
             null

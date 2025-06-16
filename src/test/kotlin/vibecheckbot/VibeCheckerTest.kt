@@ -20,7 +20,7 @@ class VibeCheckerTest {
     @BeforeEach
     fun setup() {
         mockOpenAI = mockk()
-        vibeChecker = VibeChecker(mockOpenAI)
+        vibeChecker = VibeChecker(mockOpenAI, "gpt-4.1-nano")
     }
 
     @Test

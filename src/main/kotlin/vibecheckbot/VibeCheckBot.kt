@@ -37,6 +37,7 @@ import dev.kord.core.entity.Message
 import dev.kord.core.entity.StandardEmoji
 import dev.kord.core.entity.ReactionEmoji
 import dev.kord.core.event.message.MessageCreateEvent
+import dev.kord.core.entity.GuildEmoji
 import kotlin.random.Random
 
 class VibeCheckBot(
@@ -46,7 +47,9 @@ class VibeCheckBot(
     private val serverMessageLimit: Int,
     private val userMessageLimit: Int,
     private val openAIModelName: String,
-    private val messageCheckChance: Double
+    private val messageCheckChance: Double,
+    private val minReactionInterval: Long,
+    private val maxReactionInterval: Long
 ) {
     private val logger = LoggerFactory.getLogger(VibeCheckBot::class.java)
     private lateinit var kord: Kord
@@ -54,6 +57,9 @@ class VibeCheckBot(
     private val vibeChecker = VibeChecker(openAI, openAIModelName)
     private val messageFormatter = MessageFormatter()
     private val maxDiscordMessageLength = 2000
+    
+    // Track last reaction time per channel
+    private val lastReactionTimes = mutableMapOf<Snowflake, Instant>()
 
     suspend fun start() {
         logger.info("Starting VibeCheckBot...")
@@ -82,12 +88,57 @@ class VibeCheckBot(
         kord.on<MessageCreateEvent> {
             if (message.author?.isBot == true) return@on // Ignore bot messages
             
-            // Only check messages based on configured chance
-            if (Random.nextDouble() < messageCheckChance) {
-                // Add reactions based on message content
-                val reaction = vibeChecker.checkMessageVibeEmoji(message.content)
-                if (reaction != null) {
-                    message.addReaction(ReactionEmoji.Unicode(reaction))
+            val channelId = message.channelId
+            val currentTime = Instant.now()
+            val lastReactionTime = lastReactionTimes[channelId]
+            
+            // Calculate time since last reaction
+            val secondsSinceLastReaction = lastReactionTime?.let {
+                ChronoUnit.SECONDS.between(it, currentTime)
+            } ?: maxReactionInterval
+            
+            // Calculate probability based on time since last reaction
+            val timeBasedProbability = when {
+                secondsSinceLastReaction < minReactionInterval -> 0.0
+                secondsSinceLastReaction > maxReactionInterval -> messageCheckChance
+                else -> {
+                    val progress = (secondsSinceLastReaction - minReactionInterval).toDouble() / 
+                                 (maxReactionInterval - minReactionInterval)
+                    messageCheckChance * progress
+                }
+            }
+            
+            // Only check messages based on calculated probability
+            if (Random.nextDouble() < timeBasedProbability) {
+                // Get available custom emojis from the guild
+                val guild = message.getGuildOrNull()
+                try {
+                    val availableCustomEmojis = guild?.emojis?.toList()?.filter { it.name != null }?.map { it.name!! } ?: emptyList()
+                    
+                    // Add reactions based on message content
+                    val reaction = vibeChecker.checkMessageVibeEmoji(message.content, availableCustomEmojis)
+                    if (reaction != null) {
+                        val (type, emoji) = reaction
+                        when (type) {
+                            "unicode" -> {
+                                message.addReaction(ReactionEmoji.Unicode(emoji))
+                                lastReactionTimes[channelId] = currentTime
+                            }
+                            "custom" -> {
+                                if (guild != null) {
+                                    val customEmoji = guild.emojis.toList().find { it.name == emoji }
+                                    if (customEmoji != null) {
+                                        message.addReaction(ReactionEmoji.Custom(customEmoji.id, customEmoji.name!!, customEmoji.isAnimated))
+                                        lastReactionTimes[channelId] = currentTime
+                                    } else {
+                                        logger.debug("Custom emoji not found in guild: $emoji")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    logger.error("Error handling emoji reaction: ${e.message}", e)
                 }
             }
         }
@@ -99,7 +150,7 @@ class VibeCheckBot(
                 "vibecheck" -> {
                     when (command.name) {
                         "channel" -> {
-                            val targetChannel = command.options["target"]?.value as? TextChannel
+                            val targetChannel = command.options["target"]?.value?.let { kord.getChannel(it as Snowflake) } as? TextChannel
                             val channel = targetChannel ?: interaction.channel.asChannel() as? TextChannel
                             
                             if (channel == null) {
@@ -330,8 +381,13 @@ fun main() = runBlocking {
     val userMessageLimit = System.getenv("USER_MESSAGE_LIMIT")?.toIntOrNull() ?: 50
     val openAIModelName = System.getenv("OPENAI_MODEL_NAME") ?: "gpt-4.1-nano"
     val messageCheckChance = System.getenv("MESSAGE_CHECK_CHANCE")?.toDoubleOrNull() ?: 0.05
+    val minReactionInterval = System.getenv("MIN_REACTION_INTERVAL")?.toLongOrNull() ?: 30L
+    val maxReactionInterval = System.getenv("MAX_REACTION_INTERVAL")?.toLongOrNull() ?: 300L
     
-    logger.info("Initializing VibeCheckBot with channel message limit: $channelMessageLimit, server message limit: $serverMessageLimit, user message limit: $userMessageLimit, OpenAI model: $openAIModelName, message check chance: $messageCheckChance")
+    logger.info("Initializing VibeCheckBot with channel message limit: $channelMessageLimit, " +
+                "server message limit: $serverMessageLimit, user message limit: $userMessageLimit, " +
+                "OpenAI model: $openAIModelName, message check chance: $messageCheckChance, " +
+                "min reaction interval: $minReactionInterval, max reaction interval: $maxReactionInterval")
     
     val bot = VibeCheckBot(
         discordToken = discordToken,
@@ -340,7 +396,9 @@ fun main() = runBlocking {
         serverMessageLimit = serverMessageLimit,
         userMessageLimit = userMessageLimit,
         openAIModelName = openAIModelName,
-        messageCheckChance = messageCheckChance
+        messageCheckChance = messageCheckChance,
+        minReactionInterval = minReactionInterval,
+        maxReactionInterval = maxReactionInterval
     )
     
     try {
