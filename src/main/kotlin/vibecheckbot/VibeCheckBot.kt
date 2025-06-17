@@ -53,6 +53,7 @@ class VibeCheckBot(
 ) {
     private val logger = LoggerFactory.getLogger(VibeCheckBot::class.java)
     private lateinit var kord: Kord
+    private lateinit var emojiCache: EmojiCache
     private val openAI = OpenAI(openAIToken)
     private val vibeChecker = VibeChecker(openAI, openAIModelName)
     private val messageFormatter = MessageFormatter()
@@ -65,6 +66,9 @@ class VibeCheckBot(
         logger.info("Starting VibeCheckBot...")
         
         kord = Kord(discordToken)
+        
+        // Initialize emoji cache
+        emojiCache = EmojiCache(kord)
         
         // Register slash commands
         kord.createGlobalChatInputCommand("vibecheck", "Check the vibe of this server or channel") {
@@ -110,10 +114,9 @@ class VibeCheckBot(
             
             // Only check messages based on calculated probability
             if (Random.nextDouble() < timeBasedProbability) {
-                // Get available custom emojis from the guild
-                val guild = message.getGuildOrNull()
                 try {
-                    val availableCustomEmojis = guild?.emojis?.toList()?.filter { it.name != null }?.map { it.name!! } ?: emptyList()
+                    // Get available custom emojis from the global cache
+                    val availableCustomEmojis = emojiCache.getAvailableEmojiNames()
                     
                     // Add reactions based on message content
                     val reaction = vibeChecker.checkMessageVibeEmoji(message.content, availableCustomEmojis)
@@ -125,14 +128,12 @@ class VibeCheckBot(
                                 lastReactionTimes[channelId] = currentTime
                             }
                             "custom" -> {
-                                if (guild != null) {
-                                    val customEmoji = guild.emojis.toList().find { it.name == emoji }
-                                    if (customEmoji != null) {
-                                        message.addReaction(ReactionEmoji.Custom(customEmoji.id, customEmoji.name!!, customEmoji.isAnimated))
-                                        lastReactionTimes[channelId] = currentTime
-                                    } else {
-                                        logger.debug("Custom emoji not found in guild: $emoji")
-                                    }
+                                val customEmoji = emojiCache.getEmoji(emoji)
+                                if (customEmoji != null) {
+                                    message.addReaction(ReactionEmoji.Custom(customEmoji.id, customEmoji.name!!, customEmoji.isAnimated))
+                                    lastReactionTimes[channelId] = currentTime
+                                } else {
+                                    logger.debug("Custom emoji not found in cache: $emoji")
                                 }
                             }
                         }
@@ -222,11 +223,19 @@ class VibeCheckBot(
             @OptIn(PrivilegedIntent::class)
             intents += Intent.MessageContent
         }
+        
+        // Start emoji cache after bot is logged in
+        emojiCache.start()
+        
         logger.info("VibeCheckBot started successfully")
     }
 
     suspend fun stop() {
         logger.info("Stopping VibeCheckBot...")
+        
+        // Stop emoji cache
+        emojiCache.stop()
+        
         if (::kord.isInitialized) {
             kord.logout()
         }
