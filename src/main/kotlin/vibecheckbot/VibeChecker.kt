@@ -40,7 +40,7 @@ class VibeChecker(
         )
 
         try {
-            logger.debug("Sending channel vibe check request to OpenAI using model: $openAIModelName, request body: ${messages.map { "${it.role}: ${it.content?.take(200) ?: "null"}..." }}")
+            logger.debug("Sending channel vibe check request to OpenAI using model: $openAIModelName, request body: ${messages.map { "${it.role}: ${it.content ?: "null"}..." }}")
             
             val completion = openAI.chatCompletion(
                 ChatCompletionRequest(
@@ -89,7 +89,7 @@ class VibeChecker(
         )
 
         try {
-            logger.debug("Sending server vibe check request to OpenAI using model: $openAIModelName, request body: ${messages.map { "${it.role}: ${it.content?.take(200) ?: "null"}..." }}")
+            logger.debug("Sending server vibe check request to OpenAI using model: $openAIModelName, request body: ${messages.map { "${it.role}: ${it.content ?: "null"}..." }}")
             
             val completion = openAI.chatCompletion(
                 ChatCompletionRequest(
@@ -138,7 +138,7 @@ class VibeChecker(
         )
 
         try {
-            logger.debug("Sending user vibe check request to OpenAI using model: $openAIModelName, request body: ${messages.map { "${it.role}: ${it.content?.take(200) ?: "null"}..." }}")
+            logger.debug("Sending user vibe check request to OpenAI using model: $openAIModelName, request body: ${messages.map { "${it.role}: ${it.content ?: "null"}..." }}")
             
             val completion = openAI.chatCompletion(
                 ChatCompletionRequest(
@@ -187,7 +187,7 @@ class VibeChecker(
         )
 
         try {
-            logger.debug("Sending message vibe check request to OpenAI using model: $openAIModelName, request body: ${messages.map { "${it.role}: ${it.content?.take(200) ?: "null"}..." }}")
+            logger.debug("Sending message vibe check request to OpenAI using model: $openAIModelName, request body: ${messages.map { "${it.role}: ${it.content ?: "null"}..." }}")
             
             val completion = openAI.chatCompletion(
                 ChatCompletionRequest(
@@ -248,7 +248,7 @@ class VibeChecker(
         )
 
         try {
-            logger.debug("Sending about info request to OpenAI using model: $openAIModelName, request body: ${messages.map { "${it.role}: ${it.content?.take(200) ?: "null"}..." }}")
+            logger.debug("Sending about info request to OpenAI using model: $openAIModelName, request body: ${messages.map { "${it.role}: ${it.content ?: "null"}..." }}")
             
             val completion = openAI.chatCompletion(
                 ChatCompletionRequest(
