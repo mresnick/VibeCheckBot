@@ -88,7 +88,7 @@ class VibeCheckBot(
         }
         logger.debug("Slash commands registered successfully")
 
-       // Handle message events
+        // Handle message events
         kord.on<MessageCreateEvent> {
             if (message.author?.isBot == true) return@on // Ignore bot messages
             
@@ -219,15 +219,14 @@ class VibeCheckBot(
             }
         }
 
+        emojiCache.start()
+
+        logger.info("VibeCheckBot started successfully")
+
         kord.login {
             @OptIn(PrivilegedIntent::class)
             intents += Intent.MessageContent
         }
-        
-        // Start emoji cache after bot is logged in
-        emojiCache.start()
-        
-        logger.info("VibeCheckBot started successfully")
     }
 
     suspend fun stop() {
