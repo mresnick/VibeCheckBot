@@ -40,7 +40,8 @@ class VibeChecker(
         )
 
         try {
-            logger.debug("Sending channel vibe check request to OpenAI using model: $openAIModelName")
+            logger.debug("Sending channel vibe check request to OpenAI using model: $openAIModelName, request body: ${messages.map { "${it.role}: ${it.content?.take(200) ?: "null"}..." }}")
+            
             val completion = openAI.chatCompletion(
                 ChatCompletionRequest(
                     model = ModelId(openAIModelName),
@@ -51,6 +52,7 @@ class VibeChecker(
             )
 
             val result = completion.choices.first().message.content ?: "Unable to check channel vibe at this time."
+            logger.info("Channel vibe response: $result")
             logger.debug("Channel vibe check completed successfully")
             result
         } catch (e: Exception) {
@@ -67,7 +69,7 @@ class VibeChecker(
                 role = ChatRole.System,
                 content = """
                     You are a vibe checker. Your only purpose is to check vibes, and you do that job well. Given a list of channels and their message history, 
-                    you will generate a concise analysis of the vibe of the server. The output does not need to discuss every channel, but should select a few highlights and give a general overview of the server vibe as well.length
+                    you will generate a concise analysis of the vibe of the server. The output does not need to discuss every channel, but should select a few highlights and give a general overview of the server vibe as well.
 
                     For every channel mentioned, it should begin with "Channel: #channelName", where channelName is the name of the channel. 
                     
@@ -87,7 +89,8 @@ class VibeChecker(
         )
 
         try {
-            logger.debug("Sending server vibe check request to OpenAI using model: $openAIModelName")
+            logger.debug("Sending server vibe check request to OpenAI using model: $openAIModelName, request body: ${messages.map { "${it.role}: ${it.content?.take(200) ?: "null"}..." }}")
+            
             val completion = openAI.chatCompletion(
                 ChatCompletionRequest(
                     model = ModelId(openAIModelName),
@@ -98,6 +101,7 @@ class VibeChecker(
             )
 
             val result = completion.choices.first().message.content ?: "Unable to check server vibe at this time."
+            logger.info("Server vibe response: $result")
             logger.debug("Server vibe check completed successfully")
             result
         } catch (e: Exception) {
@@ -134,7 +138,8 @@ class VibeChecker(
         )
 
         try {
-            logger.debug("Sending user vibe check request to OpenAI using model: $openAIModelName")
+            logger.debug("Sending user vibe check request to OpenAI using model: $openAIModelName, request body: ${messages.map { "${it.role}: ${it.content?.take(200) ?: "null"}..." }}")
+            
             val completion = openAI.chatCompletion(
                 ChatCompletionRequest(
                     model = ModelId(openAIModelName),
@@ -145,6 +150,7 @@ class VibeChecker(
             )
 
             val result = completion.choices.first().message.content ?: "Unable to check user vibe at this time."
+            logger.info("User vibe response: $result")
             logger.debug("User vibe check completed successfully")
             result
         } catch (e: Exception) {
@@ -181,7 +187,8 @@ class VibeChecker(
         )
 
         try {
-            logger.debug("Sending message vibe check request to OpenAI using model: $openAIModelName")
+            logger.debug("Sending message vibe check request to OpenAI using model: $openAIModelName, request body: ${messages.map { "${it.role}: ${it.content?.take(200) ?: "null"}..." }}")
+            
             val completion = openAI.chatCompletion(
                 ChatCompletionRequest(
                     model = ModelId(openAIModelName),
@@ -192,6 +199,8 @@ class VibeChecker(
             )
 
             val result = completion.choices.first().message.content?.trim()
+            logger.info("Message vibe response: $result")
+            
             if (result.isNullOrEmpty()) {
                 logger.debug("Message vibe check completed with no emoji (vibe not high enough)")
                 return@withContext null
@@ -239,7 +248,8 @@ class VibeChecker(
         )
 
         try {
-            logger.debug("Sending about info request to OpenAI using model: $openAIModelName")
+            logger.debug("Sending about info request to OpenAI using model: $openAIModelName, request body: ${messages.map { "${it.role}: ${it.content?.take(200) ?: "null"}..." }}")
+            
             val completion = openAI.chatCompletion(
                 ChatCompletionRequest(
                     model = ModelId(openAIModelName),
@@ -250,6 +260,7 @@ class VibeChecker(
             )
 
             val result = completion.choices.first().message.content ?: "Unable to get about info at this time."
+            logger.info("About info response: $result")
             logger.debug("About info request completed successfully")
             result
         } catch (e: Exception) {
