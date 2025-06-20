@@ -4,53 +4,55 @@ import com.aallam.openai.api.chat.ChatCompletionRequest
 import com.aallam.openai.api.chat.ChatMessage
 import com.aallam.openai.api.chat.ChatRole
 import com.aallam.openai.api.model.ModelId
+import com.aallam.openai.api.image.imageCreation
 import com.aallam.openai.client.OpenAI
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
+import com.aallam.openai.api.image.ImageCreation
+import com.aallam.openai.api.image.ImageSize
 
 class VibeChecker(
     private val openAI: OpenAI,
-    private val openAIModelName: String
+    private val openAIModelName: String,
+    private val maxTokens: Int
 ) {
     private val logger = LoggerFactory.getLogger(VibeChecker::class.java)
 
     suspend fun checkChannelVibe(text: String): String = withContext(Dispatchers.IO) {
-        logger.debug("Starting channel vibe check for text of length: ${text.length}")
-        
+        logger.debug("Starting channel vibe check for text of length: "+text.length)
+        val systemPrompt = """
+            You are a vibe checker. Your only purpose is to check vibes, and you do that job well. Given a channel and some of its message history,
+            you will generate a concise analysis of the vibe of the channel. The output should begin with a header, \"Vibe Check: #channelName\", where channelName is
+            the name of the channel provided in the input text. The output should be formatted for Discord, and all headers should be bolded.
+            
+            Take anything and everything into account, including but not limited to: 
+            - The overall tone and sentiment of the channel
+            - The general atmosphere and mood
+            - Any notable patterns in communication
+            - The level of engagement and activity
+        """.trimIndent()
+
         val messages = listOf(
             ChatMessage(
                 role = ChatRole.System,
-                content = """
-                    You are a vibe checker. Your only purpose is to check vibes, and you do that job well. Given a channel and some of its message history,
-                    you will generate a concise analysis of the vibe of the channel. The output should begin with a header, "Vibe Check: #channelName", where channelName is
-                    the name of the channel provided in the input text. The output should be formatted for Discord, and all headers should be bolded.
-                    
-                    Take anything and everything into account, including but not limited to: 
-                    - The overall tone and sentiment of the channel
-                    - The general atmosphere and mood
-                    - Any notable patterns in communication
-                    - The level of engagement and activity
-                """.trimIndent()
+                content = systemPrompt
             ),
             ChatMessage(
                 role = ChatRole.User,
                 content = text
             )
         )
-
         try {
-            logger.debug("Sending channel vibe check request to OpenAI using model: $openAIModelName, request body: ${messages.map { "${it.role}: ${it.content ?: "null"}..." }}")
-            
+            logger.debug("Sending channel vibe check request to OpenAI using model: $openAIModelName, messages: ${messages}")
             val completion = openAI.chatCompletion(
                 ChatCompletionRequest(
                     model = ModelId(openAIModelName),
                     messages = messages,
                     temperature = 0.7,
-                    maxTokens = 500
+                    maxTokens = maxTokens
                 )
             )
-
             val result = completion.choices.first().message.content ?: "Unable to check channel vibe at this time."
             logger.info("Channel vibe response: $result")
             logger.debug("Channel vibe check completed successfully")
@@ -61,45 +63,44 @@ class VibeChecker(
         }
     }
 
+
     suspend fun checkServerVibe(text: String): String = withContext(Dispatchers.IO) {
-        logger.debug("Starting server vibe check for text of length: ${text.length}")
-        
+        logger.debug("Starting server vibe check for text of length: "+text.length)
+        val systemPrompt = """
+            You are a vibe checker. Your only purpose is to check vibes, and you do that job well. Given a list of channels and their message history, 
+            you will generate a concise analysis of the vibe of the server. The output does not need to discuss every channel, but should select a few highlights and give a general overview of the server vibe as well.
+
+            For every channel mentioned, it should begin with \"Channel: #channelName\", where channelName is the name of the channel. 
+            
+            The overall output should conclude with a \"Server Vibe\" section, using that as a header. The output should be formatted for Discord, and all headers should be bolded.
+
+            Take anything and everything into account, including but not limited to: 
+            - The overall tone and sentiment of the channel
+            - The general atmosphere and mood
+            - Any notable patterns in communication
+            - The level of engagement and activity
+        """.trimIndent()
+
         val messages = listOf(
             ChatMessage(
                 role = ChatRole.System,
-                content = """
-                    You are a vibe checker. Your only purpose is to check vibes, and you do that job well. Given a list of channels and their message history, 
-                    you will generate a concise analysis of the vibe of the server. The output does not need to discuss every channel, but should select a few highlights and give a general overview of the server vibe as well.
-
-                    For every channel mentioned, it should begin with "Channel: #channelName", where channelName is the name of the channel. 
-                    
-                    The overall output should conclude with a "Server Vibe" section, using that as a header. The output should be formatted for Discord, and all headers should be bolded.
-
-                    Take anything and everything into account, including but not limited to: 
-                    - The overall tone and sentiment of the channel
-                    - The general atmosphere and mood
-                    - Any notable patterns in communication
-                    - The level of engagement and activity
-                """.trimIndent()
+                content = systemPrompt
             ),
             ChatMessage(
                 role = ChatRole.User,
                 content = text
             )
         )
-
         try {
-            logger.debug("Sending server vibe check request to OpenAI using model: $openAIModelName, request body: ${messages.map { "${it.role}: ${it.content ?: "null"}..." }}")
-            
+            logger.debug("Sending server vibe check request to OpenAI using model: $openAIModelName, messages: ${messages}")
             val completion = openAI.chatCompletion(
                 ChatCompletionRequest(
                     model = ModelId(openAIModelName),
                     messages = messages,
                     temperature = 0.7,
-                    maxTokens = 1000
+                    maxTokens = maxTokens
                 )
             )
-
             val result = completion.choices.first().message.content ?: "Unable to check server vibe at this time."
             logger.info("Server vibe response: $result")
             logger.debug("Server vibe check completed successfully")
@@ -111,44 +112,42 @@ class VibeChecker(
     }
 
     suspend fun checkUserVibe(text: String): String = withContext(Dispatchers.IO) {
-        logger.debug("Starting user vibe check for text of length: ${text.length}")
-        
+        logger.debug("Starting user vibe check for text of length: "+text.length)
+        val systemPrompt = """
+            You are a vibe checker. Your only purpose is to check vibes, and you do that job well. Analyze the given text from a Discord user's messages and generate a check of their vibe.
+            
+            Focus on:
+            - The user's communication style and tone
+            - Their personality traits and characteristics
+            - Their level of engagement and activity
+            - Their interaction patterns with others
+            - Whether they seem friendly and approachable
+            
+            The response should provide an overall assessment rather than specific examples. The response should have a header indicating the user and channel being analyzed. 
+            
+            The response should be formatted for Discord, and all headers should be bolded. 
+        """.trimIndent()
+
         val messages = listOf(
             ChatMessage(
                 role = ChatRole.System,
-                content = """
-                    You are a vibe checker. Your only purpose is to check vibes, and you do that job well. Analyze the given text from a Discord user's messages and generate a check of their vibe.
-                    
-                    Focus on:
-                    - The user's communication style and tone
-                    - Their personality traits and characteristics
-                    - Their level of engagement and activity
-                    - Their interaction patterns with others
-                    - Whether they seem friendly and approachable
-                    
-                    The response should provide an overall assessment rather than specific examples. The response should have a header indicating the user and channel being analyzed. 
-                    
-                    The response should be formatted for Discord, and all headers should be bolded. 
-                """.trimIndent()
+                content = systemPrompt
             ),
             ChatMessage(
                 role = ChatRole.User,
                 content = text
             )
         )
-
         try {
-            logger.debug("Sending user vibe check request to OpenAI using model: $openAIModelName, request body: ${messages.map { "${it.role}: ${it.content ?: "null"}..." }}")
-            
+            logger.debug("Sending user vibe check request to OpenAI using model: $openAIModelName, messages: ${messages}")
             val completion = openAI.chatCompletion(
                 ChatCompletionRequest(
                     model = ModelId(openAIModelName),
                     messages = messages,
                     temperature = 0.7,
-                    maxTokens = 500
+                    maxTokens = maxTokens
                 )
             )
-
             val result = completion.choices.first().message.content ?: "Unable to check user vibe at this time."
             logger.info("User vibe response: $result")
             logger.debug("User vibe check completed successfully")
@@ -171,8 +170,8 @@ class VibeChecker(
                     Vibe should take into account the message's content, length, any salient points it is making, humor, etc.
 
                     If the vibe is a 9 or 10, respond with an emoji of your choosing. You can use either a Unicode emoji or a custom server emoji.
-                    For Unicode emojis, respond with "unicode:emoji" (e.g., "unicode:🌟")
-                    For custom server emojis, respond with "custom:emoji_name" (e.g., "custom:pepega")
+                    For Unicode emojis, respond with \"unicode:emoji\" (e.g., \"unicode:🌟\")
+                    For custom server emojis, respond with \"custom:emoji_name\" (e.g., \"custom:pepega\")
 
                     Available custom emojis: ${availableCustomEmojis.joinToString(", ")}
 
@@ -187,7 +186,7 @@ class VibeChecker(
         )
 
         try {
-            logger.debug("Sending message vibe check request to OpenAI using model: $openAIModelName, request body: ${messages.map { "${it.role}: ${it.content ?: "null"}..." }}")
+            logger.debug("Sending message vibe check request to OpenAI using model: $openAIModelName, messages: ${messages}")
             
             val completion = openAI.chatCompletion(
                 ChatCompletionRequest(
@@ -242,13 +241,13 @@ class VibeChecker(
                 content = """
                     You are a discord bot that can be used to check the vibe of a server, channel, or user. Your name is VibeCheckBot.
 
-                    Respond as though a user has just run an "about" command looking to understand your capabilities and function.
+                    Respond as though a user has just run an \"about\" command looking to understand your capabilities and function.
                 """.trimIndent()
             )
         )
 
         try {
-            logger.debug("Sending about info request to OpenAI using model: $openAIModelName, request body: ${messages.map { "${it.role}: ${it.content ?: "null"}..." }}")
+            logger.debug("Sending about info request to OpenAI using model: $openAIModelName, messages: ${messages}")
             
             val completion = openAI.chatCompletion(
                 ChatCompletionRequest(
@@ -268,4 +267,77 @@ class VibeChecker(
             "Unable to get about info at this time."
         }
     }
-} 
+
+    private fun buildTrimmedPrompt(
+        prefix: String,
+        messages: List<String>,
+        maxLength: Int = 1000
+    ): String {
+        var count = messages.size
+        var prompt: String
+        do {
+            val toInclude = messages.take(count)
+            prompt = prefix + toInclude.joinToString(" ")
+            count--
+        } while (prompt.length > maxLength && count > 1)
+        return prompt
+    }
+
+    suspend fun generateChannelVibeImage(channelName: String, formattedMessages: List<String>): String? = withContext(Dispatchers.IO) {
+        val prompt = buildTrimmedPrompt(
+            prefix = "Create an artistic image that represents the vibe of a Discord channel called #$channelName based on the following recent messages. The image itself should not include any text. ",
+            messages = formattedMessages,
+            maxLength = 3900
+        )
+        try {
+            logger.info("Prompt: $prompt")
+            val request = createImageRequest(prompt)
+            val result = openAI.imageURL(request)
+            result.firstOrNull()?.url
+        } catch (e: Exception) {
+            logger.error("Error generating channel vibe image: ", e)
+            null
+        }
+    }
+
+    suspend fun generateUserVibeImage(userName: String, formattedMessages: List<String>): String? = withContext(Dispatchers.IO) {
+        val prompt = buildTrimmedPrompt(
+            prefix = "Create an artistic image that represents the vibe of a Discord user $userName based on the following recent messages. The image itself should not include any text. ",
+            messages = formattedMessages,
+            maxLength = 3900
+        )
+        try {
+            logger.info("Prompt: $prompt")
+            val request = createImageRequest(prompt)
+            val result = openAI.imageURL(request)
+            result.firstOrNull()?.url
+        } catch (e: Exception) {
+            logger.error("Error generating user vibe image: ", e)
+            null
+        }
+    }
+
+    suspend fun generateServerVibeImage(formattedMessages: List<String>): String? = withContext(Dispatchers.IO) {
+        val prompt = buildTrimmedPrompt(
+            prefix = "Create an artistic image that represents the overall vibe of this Discord server based on the following recent messages. The image itself should not include any text. ",
+            messages = formattedMessages,
+            maxLength = 3900
+        )
+        try {
+            logger.info("Prompt: $prompt")
+            val request = createImageRequest(prompt)
+            val result = openAI.imageURL(request)
+            result.firstOrNull()?.url
+        } catch (e: Exception) {
+            logger.error("Error generating server vibe image: ", e)
+            null
+        }
+    }
+
+    private suspend fun createImageRequest(prompt: String) = ImageCreation(
+        prompt = prompt,
+        n = 1,
+        model = ModelId("dall-e-3")
+    )
+}
+    

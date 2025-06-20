@@ -25,6 +25,15 @@ class MessageFormatter {
         }
     }
 
+    fun formatMessageWithoutMetadata(message: Message): String? {
+        val content = message.content
+        return if (content.isNotBlank()) {
+            "| $content"
+        } else {
+            null
+        }
+    }
+
     suspend fun formatChannelMessages(channel: TextChannel, limit: Int): String {
         logger.debug("Formatting messages for channel: ${channel.name} with limit: $limit")
         

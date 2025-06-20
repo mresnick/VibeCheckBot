@@ -39,6 +39,8 @@ import dev.kord.core.entity.ReactionEmoji
 import dev.kord.core.event.message.MessageCreateEvent
 import dev.kord.core.entity.GuildEmoji
 import kotlin.random.Random
+import com.aallam.openai.api.image.ImageCreation
+import com.aallam.openai.api.image.ImageSize
 
 class VibeCheckBot(
     private val discordToken: String,
@@ -49,13 +51,15 @@ class VibeCheckBot(
     private val openAIModelName: String,
     private val messageCheckChance: Double,
     private val minReactionInterval: Long,
-    private val maxReactionInterval: Long
+    private val maxReactionInterval: Long,
+    private val imageMessageLimit: Int,
+    private val maxTokens: Int
 ) {
     private val logger = LoggerFactory.getLogger(VibeCheckBot::class.java)
     private lateinit var kord: Kord
     private lateinit var emojiCache: EmojiCache
     private val openAI = OpenAI(openAIToken)
-    private val vibeChecker = VibeChecker(openAI, openAIModelName)
+    private val vibeChecker = VibeChecker(openAI, openAIModelName, maxTokens)
     private val messageFormatter = MessageFormatter()
     private val maxDiscordMessageLength = 2000
     
@@ -85,6 +89,17 @@ class VibeCheckBot(
                 }
             }
             subCommand("about", "Who am I?")
+        }
+        kord.createGlobalChatInputCommand("vibeimage", "Generate an image representing a vibe") {
+            subCommand("channel", "Generate an image representing the channel's vibe") {
+                channel("target", "The channel to generate an image for (defaults to current channel)") {
+                    channelTypes = listOf(ChannelType.GuildText)
+                }
+            }
+            subCommand("user", "Generate an image representing a user's vibe") {
+                user("target", "The user to generate an image for")
+            }
+            subCommand("server", "Generate an image representing the server's vibe")
         }
         logger.debug("Slash commands registered successfully")
 
@@ -204,10 +219,50 @@ class VibeCheckBot(
                                 content = result
                             }
                         }
-                        else -> {
-                            interaction.deferEphemeralResponse().respond {
-                                content = "Unknown subcommand!"
+                    }
+                }
+                "vibeimage" -> {
+                    when (command.name) {
+                        "channel" -> {
+                            val targetChannel = command.options["target"]?.value?.let { kord.getChannel(it as Snowflake) } as? TextChannel
+                            val channel = targetChannel ?: interaction.channel.asChannel() as? TextChannel
+                            if (channel == null) {
+                                interaction.deferEphemeralResponse().respond {
+                                    content = "This command can only be used in text channels!"
+                                }
+                                return@on
                             }
+                            val response = interaction.deferPublicResponse()
+                            generateChannelVibeImage(channel, response)
+                        }
+                        "user" -> {
+                            val guildInteraction = interaction as? GuildChatInputCommandInteraction
+                            if (guildInteraction == null) {
+                                interaction.deferEphemeralResponse().respond {
+                                    content = "This command can only be used in a server!"
+                                }
+                                return@on
+                            }
+                            val targetUser = (command.options["target"]?.value as Snowflake).let { kord.getUser(it) }
+                            if (targetUser == null) {
+                                interaction.deferEphemeralResponse().respond {
+                                    content = "Please specify a user to generate an image for!"
+                                }
+                                return@on
+                            }
+                            val response = interaction.deferPublicResponse()
+                            generateUserVibeImage(guildInteraction, targetUser, response)
+                        }
+                        "server" -> {
+                            val guildInteraction = interaction as? GuildChatInputCommandInteraction
+                            if (guildInteraction == null) {
+                                interaction.deferEphemeralResponse().respond {
+                                    content = "This command can only be used in a server!"
+                                }
+                                return@on
+                            }
+                            val response = interaction.deferPublicResponse()
+                            generateServerVibeImage(guildInteraction, response)
                         }
                     }
                 }
@@ -376,6 +431,112 @@ class VibeCheckBot(
             content = result
         }
     }
+
+    private suspend fun generateChannelVibeImage(channel: TextChannel, response: DeferredPublicMessageInteractionResponseBehavior) {
+        logger.debug("Channel vibe image generation requested in channel: ${channel.name}")
+
+        val messages = getChannelMessages(channel, imageMessageLimit)
+        val formattedMessages = if (messages.isNotEmpty()) {
+            messages.mapNotNull { messageFormatter.formatMessageWithoutMetadata(it) }
+        } else {
+            emptyList()
+        }
+
+        if (formattedMessages.isEmpty()) {
+            logger.info("No messages found to analyze in channel: ${channel.name}")
+            response.respond {
+                content = "No messages found to generate an image for this channel!"
+            }
+            return
+        }
+
+        val imageUrl = vibeChecker.generateChannelVibeImage(channel.name, formattedMessages)
+        if (imageUrl != null) {
+            response.respond {
+                content = "Here is an image representing the vibe of #${channel.name}:\n$imageUrl"
+            }
+        } else {
+            response.respond {
+                content = "Failed to generate an image for this channel's vibe."
+            }
+        }
+    }
+
+    private suspend fun generateUserVibeImage(
+        guildInteraction: GuildChatInputCommandInteraction,
+        targetUser: dev.kord.core.entity.User,
+        response: DeferredPublicMessageInteractionResponseBehavior
+    ) {
+        logger.debug("User vibe image generation requested for user: ${targetUser.id}")
+
+        val formattedMessages: List<String> = guildInteraction.guild.channels.toList()
+            .filter { it is TextChannel }
+            .flatMap { channel ->
+                val messages = getChannelMessages(channel as TextChannel, imageMessageLimit)
+                    .filter { message -> message.author?.id == targetUser.id }
+                if (messages.isNotEmpty()) {
+                    messages.mapNotNull { messageFormatter.formatMessageWithoutMetadata(it) }
+                } else {
+                    emptyList()
+                }
+            }
+
+        if (formattedMessages.isEmpty()) {
+            logger.info("No messages found to analyze for user: ${targetUser.id}")
+            response.respond {
+                content = "No messages found to generate an image for this user's vibe."
+            }
+            return
+        }
+
+        val imageUrl = vibeChecker.generateUserVibeImage(targetUser.username, formattedMessages)
+        if (imageUrl != null) {
+            response.respond {
+                content = "Here is an image representing the vibe of ${targetUser.mention}:\n$imageUrl"
+            }
+        } else {
+            response.respond {
+                content = "Failed to generate an image for this user's vibe."
+            }
+        }
+    }
+
+    private suspend fun generateServerVibeImage(
+        guildInteraction: GuildChatInputCommandInteraction,
+        response: DeferredPublicMessageInteractionResponseBehavior
+    ) {
+        logger.debug("Server vibe image generation requested in guild: ${guildInteraction.guildId}")
+
+        val formattedMessages: List<String> = guildInteraction.guild.channels.toList()
+            .filter { it is TextChannel }
+            .flatMap { channel ->
+                val messages = getChannelMessages(channel as TextChannel, imageMessageLimit)
+                if (messages.isNotEmpty()) {
+                    messages.mapNotNull { messageFormatter.formatMessageWithoutMetadata(it) }
+                } else {
+                    emptyList()
+                }
+            }
+
+        if (formattedMessages.isEmpty()) {
+            logger.info("No messages found to analyze in guild: ${guildInteraction.guildId}")
+            response.respond {
+                content = "No messages found to generate an image for the server!"
+            }
+            return
+        }
+
+        val imageUrl = vibeChecker.generateServerVibeImage(formattedMessages)
+        if (imageUrl != null) {
+            response.respond {
+                content = "Here is an image representing the vibe of this server:\n$imageUrl"
+            }
+        } else {
+            response.respond {
+                content = "Failed to generate an image for this server's vibe."
+            }
+        }
+    }
 }
 
 fun main() = runBlocking {
@@ -391,11 +552,22 @@ fun main() = runBlocking {
     val messageCheckChance = System.getenv("MESSAGE_CHECK_CHANCE")?.toDoubleOrNull() ?: 0.05
     val minReactionInterval = System.getenv("MIN_REACTION_INTERVAL")?.toLongOrNull() ?: 30L
     val maxReactionInterval = System.getenv("MAX_REACTION_INTERVAL")?.toLongOrNull() ?: 300L
+    val imageMessageLimit = System.getenv("IMAGE_MESSAGE_LIMIT")?.toIntOrNull() ?: 10
+    val maxTokens = System.getenv("MAX_TOKENS")?.toIntOrNull() ?: 1000
     
-    logger.info("Initializing VibeCheckBot with channel message limit: $channelMessageLimit, " +
-                "server message limit: $serverMessageLimit, user message limit: $userMessageLimit, " +
-                "OpenAI model: $openAIModelName, message check chance: $messageCheckChance, " +
-                "min reaction interval: $minReactionInterval, max reaction interval: $maxReactionInterval")
+    logger.info("""Initializing VibeCheckBot with the following configuration:\n" +
+                "discordToken: "+ if (discordToken.isNotEmpty()) "[REDACTED]" else "(not set)" + ", " +
+                "openAIToken: "+ if (openAIToken.isNotEmpty()) "[REDACTED]" else "(not set)" + ", " +
+                "channelMessageLimit: $channelMessageLimit, " +
+                "serverMessageLimit: $serverMessageLimit, " +
+                "userMessageLimit: $userMessageLimit, " +
+                "imageMessageLimit: $imageMessageLimit, " +
+                "openAIModelName: $openAIModelName, " +
+                "messageCheckChance: $messageCheckChance, " +
+                "minReactionInterval: $minReactionInterval, " +
+                "maxReactionInterval: $maxReactionInterval, " +
+                "maxTokens: $maxTokens" +
+                """)
     
     val bot = VibeCheckBot(
         discordToken = discordToken,
@@ -406,7 +578,9 @@ fun main() = runBlocking {
         openAIModelName = openAIModelName,
         messageCheckChance = messageCheckChance,
         minReactionInterval = minReactionInterval,
-        maxReactionInterval = maxReactionInterval
+        maxReactionInterval = maxReactionInterval,
+        imageMessageLimit = imageMessageLimit,
+        maxTokens = maxTokens
     )
     
     try {
