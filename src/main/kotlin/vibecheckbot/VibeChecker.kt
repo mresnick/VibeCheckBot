@@ -283,15 +283,66 @@ class VibeChecker(
         return prompt
     }
 
+    private suspend fun generateImagePrompt(rawPrompt: String): String = withContext(Dispatchers.IO) {
+        logger.debug("Generating image prompt from content")
+        
+        val messages = listOf(
+            ChatMessage(
+                role = ChatRole.System,
+                content = """
+                    You are an expert at creating image prompts for DALL-E. Based on the provided messages, write an artistic image prompt that best captures the vibe and atmosphere of the content.
+                    
+                    Focus on:
+                    - The overall mood and tone
+                    - Visual elements that represent the vibe
+                    - Artistic style and atmosphere
+                    - Emotional qualities
+                    
+                    Ensure the prompt is suitable for DALL-E image generation and avoids any content that might violate content filters.
+                    Return only the image prompt without any explanations.
+                """.trimIndent()
+            ),
+            ChatMessage(
+                role = ChatRole.User,
+                content = rawPrompt
+            )
+        )
+
+        try {
+            logger.debug("Sending image prompt generation request to OpenAI using model: $openAIModelName")
+            
+            val completion = openAI.chatCompletion(
+                ChatCompletionRequest(
+                    model = ModelId(openAIModelName),
+                    messages = messages,
+                    temperature = 0.7,
+                    maxTokens = 2000
+                )
+            )
+
+            val result = completion.choices.first().message.content?.trim() ?: rawPrompt
+            logger.info("Image prompt generation response length: ${result.length}")
+            logger.debug("Generated image prompt: $result")
+            result
+        } catch (e: Exception) {
+            logger.error("Error during image prompt generation: ${e.message}", e)
+            // Fall back to original prompt if generation fails
+            rawPrompt
+        }
+    }
+
     suspend fun generateChannelVibeImage(channelName: String, formattedMessages: List<String>): String? = withContext(Dispatchers.IO) {
-        val prompt = buildTrimmedPrompt(
+        val rawPrompt = buildTrimmedPrompt(
             prefix = "Create an artistic image that represents the vibe of a Discord channel called #$channelName based on the following recent messages. The image itself should not include any text. ",
             messages = formattedMessages,
             maxLength = 3900
         )
+        
+        val filteredPrompt = generateImagePrompt(rawPrompt)
+        
         try {
-            logger.info("Prompt: $prompt")
-            val request = createImageRequest(prompt)
+            logger.info("Original prompt length: ${rawPrompt.length}, Generated prompt length: ${filteredPrompt.length}")
+            val request = createImageRequest(filteredPrompt)
             val result = openAI.imageURL(request)
             result.firstOrNull()?.url
         } catch (e: Exception) {
@@ -301,14 +352,17 @@ class VibeChecker(
     }
 
     suspend fun generateUserVibeImage(userName: String, formattedMessages: List<String>): String? = withContext(Dispatchers.IO) {
-        val prompt = buildTrimmedPrompt(
+        val rawPrompt = buildTrimmedPrompt(
             prefix = "Create an artistic image that represents the vibe of a Discord user $userName based on the following recent messages. The image itself should not include any text. ",
             messages = formattedMessages,
             maxLength = 3900
         )
+        
+        val filteredPrompt = generateImagePrompt(rawPrompt)
+        
         try {
-            logger.info("Prompt: $prompt")
-            val request = createImageRequest(prompt)
+            logger.info("Original prompt length: ${rawPrompt.length}, Generated prompt length: ${filteredPrompt.length}")
+            val request = createImageRequest(filteredPrompt)
             val result = openAI.imageURL(request)
             result.firstOrNull()?.url
         } catch (e: Exception) {
@@ -318,14 +372,17 @@ class VibeChecker(
     }
 
     suspend fun generateServerVibeImage(formattedMessages: List<String>): String? = withContext(Dispatchers.IO) {
-        val prompt = buildTrimmedPrompt(
+        val rawPrompt = buildTrimmedPrompt(
             prefix = "Create an artistic image that represents the overall vibe of this Discord server based on the following recent messages. The image itself should not include any text. ",
             messages = formattedMessages,
             maxLength = 3900
         )
+        
+        val filteredPrompt = generateImagePrompt(rawPrompt)
+        
         try {
-            logger.info("Prompt: $prompt")
-            val request = createImageRequest(prompt)
+            logger.info("Original prompt length: ${rawPrompt.length}, Generated prompt length: ${filteredPrompt.length}")
+            val request = createImageRequest(filteredPrompt)
             val result = openAI.imageURL(request)
             result.firstOrNull()?.url
         } catch (e: Exception) {
